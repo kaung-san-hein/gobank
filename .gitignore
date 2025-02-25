@@ -1,0 +1,61 @@
+# Binaries and executable files
+*.exe
+*.out
+*.app
+*.dll
+
+# Go build artifacts
+/bin/
+/pkg/
+/*.a
+*.o
+*.so
+*.exe
+*.test
+
+# Dependency directories (Go modules)
+vendor/
+
+# Go workspace-related files
+go.work
+go.work.sum
+
+# Go-specific files
+*.log
+*.prof
+*.cover
+*.test
+
+# IDE/editor config files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*.bak
+
+# Environment and config files
+.env
+.env.local
+.env.*.local
+*.config
+config.yaml
+config.json
+config.toml
+
+# Temporary files
+/tmp/
+/temp/
+/cache/
+/logs/
+/dist/
+/node_modules/
+
+# Docker-related
+docker-compose.override.yml
+.dockerignore
+
+# macOS/Linux system files
+.DS_Store
+Thumbs.db
+*.~undo-tree~
