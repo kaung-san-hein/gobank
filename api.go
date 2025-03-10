@@ -27,6 +27,7 @@ func NewAPIServer(listenAddr string, store Storage) *APIServer {
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
+	router.HandleFunc("/login", makeHTTPHandleFunc(s.handleLogin))
 	router.HandleFunc("/accounts", makeHTTPHandleFunc(s.handleAccount))
 	router.HandleFunc("/accounts/{id}", withAuthJWT(makeHTTPHandleFunc(s.handleGetAccountById), s.store))
 	router.HandleFunc("/transfer", makeHTTPHandleFunc(s.handleTransfer))
@@ -34,6 +35,38 @@ func (s *APIServer) Run() {
 	log.Println("JSON API server running on port: ", s.listenAddr)
 
 	http.ListenAndServe(s.listenAddr, router)
+}
+
+func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
+	if r.Method != "POST" {
+		return fmt.Errorf("method is not allowed %s", r.Method)
+	}
+
+	var req LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return err
+	}
+
+	acc, err := s.store.GetAccountByNumber(int(req.Number))
+	if err != nil {
+		return err
+	}
+
+	if !acc.ValidatePassword(req.Password) {
+		return fmt.Errorf("Not Authenticated")
+	}
+
+	tokenString, err := createJWT(acc)
+	if err != nil {
+		return err
+	}
+
+	res := LoginResponse{
+		Number: acc.Number,
+		Token:  tokenString,
+	}
+
+	return WriteJSON(w, http.StatusOK, res)
 }
 
 func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error {
@@ -83,24 +116,27 @@ func (s *APIServer) handleGetAccountById(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
-	createAccountReq := new(CreateAccountRequest)
+	req := new(CreateAccountRequest)
 
-	if err := json.NewDecoder(r.Body).Decode(createAccountReq); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
 		return err
 	}
 
-	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName)
+	account, err := NewAccount(req.FirstName, req.LastName, req.Password)
+	if err != nil {
+		return err
+	}
 
 	if err := s.store.CreateAccount(account); err != nil {
 		return err
 	}
 
-	tokenString, err := createJWT(account)
-	if err != nil {
-		return err
-	}
+	// tokenString, err := createJWT(account)
+	// if err != nil {
+	// 	return err
+	// }
 
-	fmt.Println("JWT Token: ", tokenString)
+	// fmt.Println("JWT Token: ", tokenString)
 
 	return WriteJSON(w, http.StatusOK, account)
 }
@@ -217,12 +253,14 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 }
 
 func getID(r *http.Request) (int, error) {
-	idStr := mux.Vars(r)["id"]
+	idStr, ok := mux.Vars(r)["id"]
+	if !ok {
+		return 0, fmt.Errorf("missing id parameter")
+	}
 
 	id, err := strconv.Atoi(idStr)
-
 	if err != nil {
-		return id, fmt.Errorf("Invalid id given %d", idStr)
+		return 0, fmt.Errorf("invalid id given: %s", idStr)
 	}
 
 	return id, nil
